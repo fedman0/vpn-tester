@@ -9,6 +9,7 @@ require (
 	github.com/txthinking/brook v0.0.0-20261023040949-d0b6792c1b4b
 	github.com/xtls/xray-core v1.260327.1-0.20261029083850-0afec66085a8
 	golang.org/x/sys v0.49.0
+	software.sslmate.com/src/go-pkcs12 v0.7.4
 )
 
 require (

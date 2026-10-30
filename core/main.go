@@ -69,6 +69,14 @@ func protocolOutput() *os.File {
 
 func main() {
 	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "files":
+			scanMain()
+			return
+		case "export":
+			exportMain()
+			return
+		}
 		cli(os.Args[1:])
 		return
 	}
@@ -262,7 +270,13 @@ func cli(args []string) {
 			b, _ := json.Marshal(runJob(cfg, job{Link: l}))
 			fmt.Println(string(b))
 		}
+	case "scan":
+		scanCLI(args[1:], true)
+	case "detect":
+		scanCLI(args[1:], false)
+	case "filter":
+		filterCLI(args[1:])
 	default:
-		io.WriteString(os.Stderr, "usage: core [parse|test] links...\n")
+		io.WriteString(os.Stderr, "usage: core [parse|test] links... | scan|detect [flags] <dir> | filter <format> <file> <indices> | files | export\n")
 	}
 }
