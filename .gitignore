@@ -14,3 +14,7 @@
 .cxx
 local.properties
 /app/src/main/jniLibs/**/libcore.so
+/keystore.properties
+*.jks
+*.keystore
+/.claude/
