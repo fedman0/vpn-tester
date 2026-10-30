@@ -319,7 +319,7 @@ func parseSS(link string) (*node, error) {
 		m["plugin-opts"] = map[string]any{"host": opts["host"], "password": opts["password"], "version-hint": firstNonEmpty(opts["version-hint"], "tls13"), "restls-script": opts["restls-script"]}
 		proto += "+restls"
 	case "ck-client", "cloak":
-		return &node{Proto: proto + "+cloak"}, errors.New("cloak plugin not supported yet")
+		return ckSSNode(proto, opts, host, port, m)
 	default:
 		return &node{Proto: proto}, fmt.Errorf("ss plugin %q not supported", name)
 	}
