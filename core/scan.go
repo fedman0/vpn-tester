@@ -490,6 +490,9 @@ func (c *Config) computeFingerprint() {
 		strings.ToLower(c.SNI),
 		strings.ToLower(c.Transport),
 		c.Extra,
+		c.Password,
+		c.PSK,
+		c.PrivateKey,
 	}
 	h := sha1.Sum([]byte(strings.Join(parts, "\x00")))
 	c.Fingerprint = hex.EncodeToString(h[:8])
