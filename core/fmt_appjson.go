@@ -625,13 +625,70 @@ func (npvsDetector) Detect(f *vfile) int {
 	if f.Ext == "npvs" {
 		return 60
 	}
+	if f.Ext == "npvt" && f.IsText() && len(t) > 0 {
+		if t[0] == '{' || t[0] == '[' {
+			return 75
+		}
+		return 50
+	}
 	return 0
 }
 
 type npvsParser struct{}
 
 func (npvsParser) Parse(f *vfile, fs *vfs) ([]*Config, error) {
-	return []*Config{unsupportedConfig(f, "NapsternetV", "NapsternetV", "sealed NapsternetV config (encrypted, can only be opened by NapsternetV)")}, nil
+	t := bytes.TrimSpace(f.Data)
+	if bytes.HasPrefix(t, []byte("npvs1:")) || bytes.HasPrefix(t, []byte("npvt1:")) || f.Ext == "npvs" {
+		return []*Config{unsupportedConfig(f, "NapsternetV", "NapsternetV", "sealed NapsternetV config (encrypted, can only be opened by NapsternetV)")}, nil
+	}
+	if len(t) > 0 && (t[0] == '{' || t[0] == '[') {
+		var top map[string]any
+		if t[0] == '{' && json.Unmarshal(t, &top) == nil && ajIsClientConfig(ajObj(top)) {
+			cs, err := parseAs("Xray", f, fs)
+			if err == nil && len(cs) > 0 {
+				for _, c := range cs {
+					c.Format = "NapsternetV"
+				}
+				return cs, nil
+			}
+		}
+		objs, _, err := ajParse(f)
+		if err == nil && len(objs) > 0 {
+			var out []*Config
+			for i, o := range objs {
+				p := ajProtoOf(o)
+				var cs []*Config
+				if p == "" {
+					if l := o.str("link", "uri", "url"); strings.Contains(l, "://") {
+						cs = ajLinkConfigs(f, fs, l, i)
+					} else {
+						cs = []*Config{invalidConfig(f, "NapsternetV", errors.New("cannot determine protocol"))}
+					}
+				} else {
+					cs = ajBuild(f, fs, o, p, i)
+				}
+				for _, c := range cs {
+					c.Format = "NapsternetV"
+					c.File = f.Root().Path
+					out = append(out, c)
+				}
+			}
+			return out, nil
+		}
+	}
+	links := extractFileLinks(f.Text())
+	if len(links) > 0 {
+		var out []*Config
+		for i, l := range links {
+			for _, c := range linkConfigs(f.Child(fmt.Sprintf("link%d", i), fmt.Sprintf("link%d.txt", i), []byte(l)), fs, l) {
+				c.Format = "NapsternetV"
+				c.File = f.Root().Path
+				out = append(out, c)
+			}
+		}
+		return out, nil
+	}
+	return []*Config{invalidConfig(f, "NapsternetV", errors.New("unrecognized NapsternetV profile"))}, nil
 }
 
 type hevYAMLDetector struct{}
