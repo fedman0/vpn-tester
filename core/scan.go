@@ -403,13 +403,20 @@ type pptpSpec struct {
 }
 
 var (
-	buildIKEConfig  func(f *vfile, fs *vfs, s *ikeSpec) *Config
-	buildOCConfig   func(f *vfile, fs *vfs, s *ocSpec) *Config
-	buildSSTPConfig func(f *vfile, fs *vfs, s *sstpSpec) *Config
-	buildPPTPConfig func(f *vfile, fs *vfs, s *pptpSpec) *Config
+	buildIKEConfig   func(f *vfile, fs *vfs, s *ikeSpec) *Config
+	buildIKEv1Config func(f *vfile, fs *vfs, s *ikeSpec) *Config
+	buildOCConfig    func(f *vfile, fs *vfs, s *ocSpec) *Config
+	buildSSTPConfig  func(f *vfile, fs *vfs, s *sstpSpec) *Config
+	buildPPTPConfig  func(f *vfile, fs *vfs, s *pptpSpec) *Config
 )
 
 func ikeConfig(f *vfile, fs *vfs, s *ikeSpec) *Config {
+	if s.Version == 1 {
+		if buildIKEv1Config == nil {
+			return unsupportedConfig(f, "IPsec", "IKEv1", "IKEv1 support is not available")
+		}
+		return buildIKEv1Config(f, fs, s)
+	}
 	if buildIKEConfig == nil {
 		return unsupportedConfig(f, "IPsec", "IKEv2", "IKE support is not available")
 	}
