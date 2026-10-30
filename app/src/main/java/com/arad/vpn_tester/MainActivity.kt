@@ -1,7 +1,9 @@
 package com.arad.vpn_tester
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +60,11 @@ fun App(vm: TesterViewModel = viewModel(), folderVm: FolderViewModel = viewModel
     val snackbar = remember { SnackbarHostState() }
     val state by vm.state.collectAsStateWithLifecycle()
     val folderState by folderVm.state.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    BackHandler(enabled = state.running || folderState.running || folderState.saving) {
+        (context as? Activity)?.moveTaskToBack(true)
+    }
 
     LaunchedEffect(state.message) {
         val m = state.message ?: return@LaunchedEffect
