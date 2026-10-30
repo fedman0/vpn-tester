@@ -25,6 +25,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.arad.vpn_tester.ui.FolderScreen
+import com.arad.vpn_tester.ui.FolderViewModel
 import com.arad.vpn_tester.ui.SettingsScreen
 import com.arad.vpn_tester.ui.TestScreen
 import com.arad.vpn_tester.ui.TesterViewModel
@@ -44,20 +46,27 @@ class MainActivity : ComponentActivity() {
 
 enum class Tab(val title: Int, val icon: Int) {
     TEST(R.string.tab_test, R.drawable.ic_bolt),
+    FOLDER(R.string.tab_folder, R.drawable.ic_folder),
     SETTINGS(R.string.tab_settings, R.drawable.ic_settings),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun App(vm: TesterViewModel = viewModel()) {
+fun App(vm: TesterViewModel = viewModel(), folderVm: FolderViewModel = viewModel()) {
     var tab by rememberSaveable { mutableStateOf(Tab.TEST) }
     val snackbar = remember { SnackbarHostState() }
     val state by vm.state.collectAsStateWithLifecycle()
+    val folderState by folderVm.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.message) {
         val m = state.message ?: return@LaunchedEffect
         snackbar.showSnackbar(m, duration = SnackbarDuration.Short)
         vm.consumeMessage()
+    }
+    LaunchedEffect(folderState.message) {
+        val m = folderState.message ?: return@LaunchedEffect
+        snackbar.showSnackbar(m, duration = SnackbarDuration.Short)
+        folderVm.consumeMessage()
     }
 
     Scaffold(
@@ -82,6 +91,7 @@ fun App(vm: TesterViewModel = viewModel()) {
     ) { padding ->
         when (tab) {
             Tab.TEST -> TestScreen(vm, padding)
+            Tab.FOLDER -> FolderScreen(folderVm, padding)
             Tab.SETTINGS -> SettingsScreen(vm, padding)
         }
     }

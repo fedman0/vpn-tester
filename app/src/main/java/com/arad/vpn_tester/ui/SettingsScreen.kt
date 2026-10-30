@@ -107,6 +107,36 @@ fun SettingsScreen(vm: TesterViewModel, padding: PaddingValues) {
             }
         }
 
+        Section("Folder scan: ${s.folderConcurrency} parallel tests") {
+            Text(
+                "How many config files are tested at once on the Folder page.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = s.folderConcurrency.toFloat(),
+                onValueChange = { vm.updateSettings(s.copy(folderConcurrency = it.roundToInt().coerceIn(1, 64))) },
+                valueRange = 1f..64f,
+                steps = 62,
+            )
+            TimeoutSlider("Overall timeout", s.folderOverallMs, 5000, 60000) { vm.updateSettings(s.copy(folderOverallMs = it)) }
+            TimeoutSlider("DNS timeout", s.folderDnsMs, 1000, 15000) { vm.updateSettings(s.copy(folderDnsMs = it)) }
+            TimeoutSlider("Connect timeout", s.folderConnectMs, 1000, 20000) { vm.updateSettings(s.copy(folderConnectMs = it)) }
+            TimeoutSlider("Handshake timeout", s.folderHandshakeMs, 2000, 30000) { vm.updateSettings(s.copy(folderHandshakeMs = it)) }
+            TimeoutSlider("Authentication timeout", s.folderAuthMs, 2000, 30000) { vm.updateSettings(s.copy(folderAuthMs = it)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Data probe", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "After a successful handshake, send one test request through the tunnel (inside the app only).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = s.folderDataProbe, onCheckedChange = { vm.updateSettings(s.copy(folderDataProbe = it)) })
+            }
+        }
+
         Section("Supported links") {
             Text(
                 "VLESS, VMess, Trojan, Trojan-Go, Shadowsocks (incl. 2022, obfs, v2ray-plugin, shadow-tls, kcptun), ShadowsocksR, " +
@@ -119,6 +149,17 @@ fun SettingsScreen(vm: TesterViewModel, padding: PaddingValues) {
             )
         }
     }
+}
+
+@Composable
+private fun TimeoutSlider(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+    Text("$label: ${"%.1f".format(value / 1000.0)} s", style = MaterialTheme.typography.bodyMedium)
+    Slider(
+        value = value.toFloat().coerceIn(min.toFloat(), max.toFloat()),
+        onValueChange = { onChange(((it / 500f).roundToInt() * 500).coerceIn(min, max)) },
+        valueRange = min.toFloat()..max.toFloat(),
+        steps = ((max - min) / 500) - 1,
+    )
 }
 
 @Composable
