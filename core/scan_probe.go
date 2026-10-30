@@ -319,7 +319,7 @@ func classifyErr(stage string, err error) string {
 		return StatePortUnreachable
 	case errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) || strings.Contains(s, "no route to host") || strings.Contains(s, "network is unreachable") || strings.Contains(s, "host is unreachable"):
 		return StateHostUnreachable
-	case strings.Contains(s, "auth_failed") || strings.Contains(s, "authentication fail") || strings.Contains(s, "auth failed") || strings.Contains(s, "invalid password") || strings.Contains(s, "wrong password") || strings.Contains(s, "unauthorized") || strings.Contains(s, "407 proxy authentication"):
+	case strings.Contains(s, "auth_failed") || strings.Contains(s, "authentication fail") || strings.Contains(s, "auth failed") || strings.Contains(s, "invalid password") || strings.Contains(s, "wrong password") || strings.Contains(s, "unauthorized") || strings.Contains(s, "username/password") || strings.Contains(s, "rejected username") || strings.Contains(s, "407 proxy authentication"):
 		return StateAuthFailed
 	}
 	if stage == StageTransport {

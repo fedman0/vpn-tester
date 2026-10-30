@@ -87,7 +87,9 @@ func newXray(outbound map[string]any) (Dialer, error) {
 	if err != nil {
 		return nil, err
 	}
+	xrNewMu.Lock()
 	inst, err := core.New(c)
+	xrNewMu.Unlock()
 	if err != nil {
 		return nil, err
 	}

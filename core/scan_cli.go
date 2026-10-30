@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 func loadDir(root string) *vfs {
@@ -60,7 +61,10 @@ func scanCLI(args []string, testing bool) {
 	w := bufio.NewWriter(os.Stdout)
 	defer w.Flush()
 	names := map[int]string{}
+	var mu sync.Mutex
 	emit := func(x any) {
+		mu.Lock()
+		defer mu.Unlock()
 		if *pretty {
 			printPretty(w, x, names)
 		} else {
@@ -140,10 +144,11 @@ func filterCLI(args []string) {
 			idx = append(idx, n)
 		}
 	}
+	w := protocolOutput()
 	out, err := filterFile(args[0], newVFile(filepath.Base(args[1]), b), idx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	os.Stdout.Write(out)
+	w.Write(out)
 }
