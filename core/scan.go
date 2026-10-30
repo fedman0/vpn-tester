@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -641,8 +642,28 @@ var depExt = map[string]bool{
 	"pkcs12": true, "pkcs8": true, "p8": true, "csr": false,
 }
 
+var secretsLineRe = regexp.MustCompile(`(?m)^\s*(?:[^\s#:][^:#\n]*)?:\s*(?:PSK|EAP|RSA|ECDSA|XAUTH|P12|PKCS12|NTLM|PIN|BLISS|PKCS8)\b`)
+
+func isSecretsFile(f *vfile) bool {
+	if !f.IsText() {
+		return false
+	}
+	t := f.Text()
+	if secretsLineRe.MatchString(t) {
+		return true
+	}
+	trim := strings.TrimSpace(t)
+	if strings.HasPrefix(trim, "secrets") && !strings.Contains(t, "connections") {
+		return true
+	}
+	return false
+}
+
 func isDependencyFile(f *vfile) bool {
 	if depExt[f.Ext] {
+		return true
+	}
+	if f.Ext == "secrets" || strings.HasSuffix(strings.ToLower(f.Name), ".secrets") || isSecretsFile(f) {
 		return true
 	}
 	t := f.Data
@@ -732,6 +753,20 @@ func discover(fs *vfs) *scanResult {
 		}(i, f)
 	}
 	wg.Wait()
+	for i := range items {
+		if !items[i].ok || !fs.used[items[i].f.Path] {
+			continue
+		}
+		unknown := true
+		for _, c := range items[i].cs {
+			if c.Format != "Unknown" {
+				unknown = false
+			}
+		}
+		if unknown {
+			items[i].ok = false
+		}
+	}
 	id := 0
 	for _, it := range items {
 		if !it.ok {
