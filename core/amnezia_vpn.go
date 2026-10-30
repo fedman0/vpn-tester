@@ -20,6 +20,7 @@ var amzLinkRe = regexp.MustCompile(`vpn://[A-Za-z0-9_\-+/]+=*`)
 type amzDoc struct {
 	obj     map[string]any
 	encoded bool
+	group   *amzGroup
 }
 
 type amzOwner struct {
@@ -134,13 +135,34 @@ func amzLooksAmnezia(m map[string]any) bool {
 	}
 	_, h := m["hostName"]
 	_, d := m["defaultContainer"]
-	return h && d
+	if h && d {
+		return true
+	}
+	return amzIsSSHOnly(m)
+}
+
+func amzIsSSHOnly(m map[string]any) bool {
+	if amzStr(m, "hostName") != "" && amzStr(m, "userName") != "" {
+		_, pw := m["password"]
+		return pw
+	}
+	if amzStr(m, "h") != "" && amzStr(m, "u") != "" {
+		_, w := m["w"]
+		_, p := m["p"]
+		return w || p
+	}
+	return false
 }
 
 func amzExtract(text string) ([]*amzDoc, []error) {
 	var docs []*amzDoc
 	var errs []error
 	t := strings.TrimSpace(text)
+	if strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[") {
+		if ds := amzExtractGroup([]byte(t)); len(ds) > 0 {
+			return ds, nil
+		}
+	}
 	if strings.HasPrefix(t, "{") {
 		if m, err := amzDecodeJSON([]byte(t)); err == nil && amzLooksAmnezia(m) {
 			return []*amzDoc{{obj: m}}, nil
@@ -180,7 +202,10 @@ func (AmneziaVpnDetector) Detect(f *vfile) int {
 	text := f.Text()
 	if !strings.Contains(text, "vpn://") {
 		t := strings.TrimSpace(text)
-		if !strings.HasPrefix(t, "{") || !strings.Contains(t, "\"containers\"") && !strings.Contains(t, "\"defaultContainer\"") && !strings.Contains(t, "\"api_config\"") && !strings.Contains(t, "\"auth_data\"") {
+		if !strings.HasPrefix(t, "{") && !strings.HasPrefix(t, "[") {
+			return 0
+		}
+		if !strings.Contains(t, "\"containers\"") && !strings.Contains(t, "\"defaultContainer\"") && !strings.Contains(t, "\"api_config\"") && !strings.Contains(t, "\"auth_data\"") && !strings.Contains(t, amzBackupKey) {
 			return 0
 		}
 	}
@@ -288,7 +313,9 @@ func amzSubst(text string, doc map[string]any) string {
 	return r.Replace(text)
 }
 
-var amzAwgKeys = []string{"Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4", "I1", "I2", "I3", "I4", "I5", "J1", "J2", "J3", "Itime"}
+var amzAwgKeys = []string{"Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4", "I1", "I2", "I3", "I4", "I5", "J1", "J2", "J3", "Itime",
+	"HeaderProtectionKey", "ContentPaddingAddition", "RekeyAfterTime", "RekeyTimeout", "RejectAfterTime", "KeepaliveTimeout",
+	"MaxHandshakeAttempts", "RandomTrailers", "DisableCookies"}
 
 func amzInjectAwg(text string, sources ...map[string]any) string {
 	present := map[string]bool{}
@@ -380,7 +407,7 @@ func amzSynthWG(lc, proto, doc map[string]any) string {
 
 var amzSkipContainers = map[string]bool{
 	"amnezia-dns": true, "amnezia-sftp": true, "amnezia-torwebsite": true, "amnezia-tor": true,
-	"amnezia-nextcloud": true, "amnezia-mtproxy": true,
+	"amnezia-nextcloud": true, "none": true,
 }
 
 func amzProtoKey(cont map[string]any, prefer ...string) (string, map[string]any) {
@@ -404,6 +431,7 @@ func amzName(doc map[string]any, container string) string {
 type amzBuilder struct {
 	f       *vfile
 	fs      *vfs
+	grouped bool
 	docIdx  int
 	doc     map[string]any
 	configs []*Config
@@ -428,7 +456,9 @@ func (b *amzBuilder) unsupported(ci int, proto, name, reason string) {
 
 func (b *amzBuilder) child(ci int, key, name, text string) *vfile {
 	tag := fmt.Sprintf("containers[%d].%s", ci, key)
-	if b.docIdx > 0 {
+	if b.grouped {
+		tag = fmt.Sprintf("servers[%d].%s", b.docIdx, tag)
+	} else if b.docIdx > 0 {
 		tag = fmt.Sprintf("vpn[%d].%s", b.docIdx, tag)
 	}
 	return b.f.Child(tag, name, []byte(text))
@@ -473,7 +503,7 @@ func (b *amzBuilder) container(ci int, cont map[string]any) {
 		key, proto := amzProtoKey(cont, "wireguard")
 		b.wireguard(ci, key, proto, label, false)
 	case strings.Contains(lname, "cloak"):
-		b.unsupported(ci, "OpenVPN", label, "OpenVPN over Cloak is not supported")
+		b.cloak(ci, cont, label, host)
 	case lname == "amnezia-shadowsocks":
 		_, proto := amzProtoKey(cont, "shadowsocks")
 		b.shadowsocks(ci, proto, label, host)
@@ -497,6 +527,12 @@ func (b *amzBuilder) container(ci int, cont map[string]any) {
 	case strings.Contains(lname, "socks5"):
 		_, proto := amzProtoKey(cont, "socks5proxy", "socks5")
 		b.socks5(ci, proto, label, host)
+	case lname == "amnezia-mtproxy":
+		b.telegram(ci, cont, "mtproxy", label, host)
+	case lname == "amnezia-telemt":
+		b.telegram(ci, cont, "telemt", label, host)
+	case lname == "amnezia-tproxy":
+		b.unsupported(ci, "tproxy", label, "Telegram WEB proxy (tg://webproxy) is not tested")
 	default:
 		b.unknown(ci, cont, name, label, host)
 	}
@@ -702,23 +738,30 @@ func (b *amzBuilder) document() {
 	doc := b.doc
 	if amzIsAPI(doc) {
 		if _, ok := doc["containers"]; !ok || len(amzContainers(doc)) == 0 {
-			b.unsupported(-1, "AmneziaVPN", amzStr(doc, "description", "name"), "Amnezia subscription (API) key: the VPN config is fetched from the Amnezia service at connect time")
+			b.unsupported(-1, "AmneziaVPN", amzStr(doc, "description", "name"), amzAPIReason(doc))
 			return
 		}
 	}
 	conts := amzContainers(doc)
 	start := len(b.configs)
-	for i, c := range conts {
-		b.container(i, c)
+	for _, i := range amzOrder(doc, conts) {
+		b.container(i, conts[i])
 	}
 	if len(b.configs) == start {
+		name := amzStr(doc, "description", "hostName", "h")
 		if len(conts) == 0 {
+			if amzIsSSHOnly(doc) {
+				c := unsupportedConfig(b.f, "AmneziaVPN", "", "server-management key with SSH credentials only: it has no VPN client config (open it in the Amnezia app to install/generate one)")
+				c.Name, c.Host = name, amzStr(doc, "hostName", "h")
+				b.add(-1, c)
+				return
+			}
 			c := invalidConfig(b.f, "AmneziaVPN", errors.New("Amnezia config has no containers"))
-			c.Name = amzStr(doc, "description", "hostName")
+			c.Name = name
 			b.add(-1, c)
 			return
 		}
-		b.unsupported(-1, "", amzStr(doc, "description", "hostName"), "Amnezia config has no VPN containers (only services such as DNS/SFTP/Tor)")
+		b.unsupported(-1, "", name, "Amnezia config has no VPN containers (only services such as DNS/SFTP/Tor)")
 		return
 	}
 	if amzStr(doc, "userName") != "" && (amzStr(doc, "password") != "" || amzStr(doc, "port") != "") {
@@ -726,6 +769,34 @@ func (b *amzBuilder) document() {
 			c.Warn("file also contains server SSH credentials (not used)")
 		}
 	}
+}
+
+func amzAPIReason(doc map[string]any) string {
+	if amzStr(doc, "config_version") == "1" {
+		return "legacy Amnezia API key (Telegram bot / API v1): its config is fetched from the Amnezia service at connect time and current Amnezia apps no longer accept it"
+	}
+	svc := amzStr(amzObj(doc, "api_config"), "service_type")
+	what := "Amnezia subscription (API) key"
+	switch svc {
+	case "amnezia-premium", "external-premium":
+		what = "Amnezia Premium key"
+	case "amnezia-free":
+		what = "Amnezia Free key"
+	}
+	return what + ": the VPN config is issued by the Amnezia gateway only after registering a device key, which is not read-only, so it is not tested"
+}
+
+func amzOrder(doc map[string]any, conts []map[string]any) []int {
+	def := amzStr(doc, "defaultContainer")
+	order := make([]int, 0, len(conts))
+	for i, c := range conts {
+		if def != "" && amzStr(c, "container") == def {
+			order = append([]int{i}, order...)
+		} else {
+			order = append(order, i)
+		}
+	}
+	return order
 }
 
 func amzContainers(doc map[string]any) []map[string]any {
@@ -748,7 +819,7 @@ func amzParse(f *vfile, fs *vfs) ([]*Config, []amzOwner, []*amzDoc, error) {
 		}
 		return nil, nil, nil, errors.New("no Amnezia config found")
 	}
-	b := &amzBuilder{f: f, fs: fs}
+	b := &amzBuilder{f: f, fs: fs, grouped: docs[0].group != nil}
 	for i, d := range docs {
 		b.docIdx, b.doc = i, d.obj
 		b.document()
@@ -795,6 +866,36 @@ func amzEncode(obj map[string]any, compressed bool) (string, error) {
 
 type AmneziaVpnFilter struct{}
 
+func amzFilterDoc(obj map[string]any, keepAll bool, keep map[int]bool) map[string]any {
+	if keepAll {
+		return obj
+	}
+	cp := make(map[string]any, len(obj))
+	for k, v := range obj {
+		cp[k] = v
+	}
+	var kept []any
+	var names []string
+	for ci, c := range amzContainers(obj) {
+		if keep[ci] {
+			kept = append(kept, c)
+			names = append(names, amzStr(c, "container"))
+		}
+	}
+	cp["containers"] = kept
+	def := amzStr(obj, "defaultContainer")
+	found := false
+	for _, n := range names {
+		if n == def {
+			found = true
+		}
+	}
+	if !found && len(names) > 0 {
+		cp["defaultContainer"] = names[0]
+	}
+	return cp
+}
+
 func (AmneziaVpnFilter) Filter(f *vfile, indices []int) ([]byte, error) {
 	_, owners, docs, err := amzParse(f, nil)
 	if err != nil {
@@ -816,39 +917,25 @@ func (AmneziaVpnFilter) Filter(f *vfile, indices []int) ([]byte, error) {
 		}
 		keepCont[o.doc][o.cont] = true
 	}
+	if len(docs) > 0 && docs[0].group != nil {
+		g := docs[0].group
+		kept := map[int]map[string]any{}
+		for di, d := range docs {
+			if keepDoc[di] || len(keepCont[di]) > 0 {
+				kept[di] = amzFilterDoc(d.obj, keepDoc[di], keepCont[di])
+			}
+		}
+		if len(kept) == 0 {
+			return nil, errors.New("no configs selected")
+		}
+		return g.encode(kept)
+	}
 	var out []string
 	for di, d := range docs {
 		if !keepDoc[di] && len(keepCont[di]) == 0 {
 			continue
 		}
-		obj := d.obj
-		if !keepDoc[di] {
-			cp := make(map[string]any, len(obj))
-			for k, v := range obj {
-				cp[k] = v
-			}
-			var kept []any
-			var names []string
-			for ci, c := range amzContainers(obj) {
-				if keepCont[di][ci] {
-					kept = append(kept, c)
-					names = append(names, amzStr(c, "container"))
-				}
-			}
-			cp["containers"] = kept
-			def := amzStr(obj, "defaultContainer")
-			found := false
-			for _, n := range names {
-				if n == def {
-					found = true
-				}
-			}
-			if !found && len(names) > 0 {
-				cp["defaultContainer"] = names[0]
-			}
-			obj = cp
-		}
-		s, err := amzEncode(obj, d.encoded)
+		s, err := amzEncode(amzFilterDoc(d.obj, keepDoc[di], keepCont[di]), d.encoded)
 		if err != nil {
 			return nil, err
 		}

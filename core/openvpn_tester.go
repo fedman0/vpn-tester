@@ -629,7 +629,14 @@ type ovpnBufConn struct {
 
 func (c *ovpnBufConn) Read(b []byte) (int, error) { return c.r.Read(b) }
 
+type ovpnStreamDialerKey struct{}
+
+type ovpnStreamDialer func(ctx context.Context, p *probe, r ovpnRemote) net.Conn
+
 func ovpnDialStream(ctx context.Context, p *probe, r ovpnRemote) net.Conn {
+	if d, ok := ctx.Value(ovpnStreamDialerKey{}).(ovpnStreamDialer); ok && d != nil {
+		return d(ctx, p, r)
+	}
 	if r.Proxy == nil {
 		if !ovpnResolve(ctx, p, r.Host, r.Family) {
 			return nil
