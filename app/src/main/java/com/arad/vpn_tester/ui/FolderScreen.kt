@@ -185,6 +185,7 @@ fun FolderScreen(vm: FolderViewModel, padding: PaddingValues) {
                 )
             }
         }
+        item(key = "footer") { ChannelFooter() }
     }
 }
 

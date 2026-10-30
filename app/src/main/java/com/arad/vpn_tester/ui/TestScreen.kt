@@ -146,6 +146,7 @@ fun TestScreen(vm: TesterViewModel, padding: PaddingValues) {
                 onCopy = { vm.copyOne(e.link) },
             )
         }
+        item(key = "footer") { ChannelFooter() }
     }
 }
 

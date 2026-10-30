@@ -1,4 +1,6 @@
-# VPN Tester
+# 🍒 Albalu 🍒
+
+Telegram channel: [t.me/albaluv2](https://t.me/albaluv2) · @albaluv2
 
 Android app (Android 11+, no root) that tests large batches of VPN and proxy configs in parallel without bringing up a VPN tunnel.
 Nothing touches the phone's routes, DNS or system proxy: every test runs inside an embedded core process.

@@ -28,6 +28,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.arad.vpn_tester.ui.ChannelButton
 import com.arad.vpn_tester.ui.FolderScreen
 import com.arad.vpn_tester.ui.FolderViewModel
 import com.arad.vpn_tester.ui.SettingsScreen
@@ -79,9 +80,10 @@ fun App(vm: TesterViewModel = viewModel(), folderVm: FolderViewModel = viewModel
 
     Scaffold(
         topBar = {
-            TopAppBar(title = {
-                Text(if (tab == Tab.TEST) stringResource(R.string.app_name) else stringResource(tab.title))
-            })
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = { ChannelButton() },
+            )
         },
         bottomBar = {
             NavigationBar {

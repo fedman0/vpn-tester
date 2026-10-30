@@ -9,7 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import com.arad.vpn_tester.R
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -40,6 +49,20 @@ fun SettingsScreen(vm: TesterViewModel, padding: PaddingValues) {
             .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Section(APP_TITLE) {
+            val ctx = LocalContext.current
+            val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+            val open = rememberOpenChannel()
+            Text("Version $version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Telegram channel: $CHANNEL_HANDLE", style = MaterialTheme.typography.bodyMedium)
+            Text(CHANNEL_LINK, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            Button(onClick = open) {
+                Icon(painterResource(R.drawable.ic_telegram), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Open $CHANNEL_HANDLE")
+            }
+        }
+
         Section("Test URLs") {
             Text(
                 "Every config requests both URLs at the same time. The first HTTP 204 answer counts as the ping.",
@@ -148,6 +171,7 @@ fun SettingsScreen(vm: TesterViewModel, padding: PaddingValues) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        ChannelFooter()
     }
 }
 
