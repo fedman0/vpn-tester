@@ -28,10 +28,11 @@ object LinkExtractor {
         "naive", "naive+https", "naive+quic", "naive+http2", "naive+h2", "naive+http3", "naive+h3",
         "brook", "ssh", "snell", "mieru", "mierus", "masque", "tt", "trusttunnel",
         "shadowtls", "shadow-tls", "stls", "tg", "v2rayn",
+        "wireguard", "wg", "awg", "amneziawg", "vpn", "slipnet",
     )
 
     private val tunnelSchemes = setOf(
-        "wireguard", "wg", "awg", "amneziawg", "openvpn", "ovpn", "dnstt", "dnst", "slipnet",
+        "openvpn", "ovpn", "dnstt", "dnst",
         "darktunnel", "slipstream", "iodine", "openconnect", "ikev2", "ipsec", "l2tp", "sstp",
         "softether", "tailscale", "zerotier",
     )

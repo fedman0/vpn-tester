@@ -148,6 +148,9 @@ func runJob(cfg *runConfig, j job) (r result) {
 			r.Error = fmt.Sprint("internal error: ", p)
 		}
 	}()
+	if h := lookupLinkHandler(strings.TrimSpace(j.Link)); h != nil {
+		return runLinkViaHandler(cfg, j, h)
+	}
 	n, err := parseLink(strings.TrimSpace(j.Link))
 	if n != nil {
 		r.Proto = n.Proto

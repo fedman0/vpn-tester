@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -15,7 +16,7 @@ var linkSchemes = []string{
 	"v2rayn", "realm", "wireguard", "wg", "awg",
 }
 
-var linkRe = regexp.MustCompile(`(?i)\b(?:vless|vmess|trojan-go|trojan|ssr|ss|socks5h|socks5|socks4a|socks4|socks|tg|hysteria2|hysteria|hy2|tuic|anytls|mierus|mieru|ssh|snell|masque|trusttunnel|tt|naive\+https|naive\+quic|naive|juicity|brook|shadowtls|v2rayn|realm|wireguard|awg|wg)://[^\s"'<>]+`)
+var linkRe = regexp.MustCompile(`(?i)\b(?:slipnet-bundle-enc|slipnet-enc|slipnet|vless|vmess|trojan-go|trojan|ssr|ss|socks5h|socks5|socks4a|socks4|socks|tg|hysteria2|hysteria|hy2|tuic|anytls|mierus|mieru|ssh|snell|masque|trusttunnel|tt|naive\+https|naive\+quic|naive|juicity|brook|shadowtls|v2rayn|realm|wireguard|awg|wg|vpn)://[^\s"'<>]+`)
 
 var proxyHTTPRe = regexp.MustCompile(`(?i)\bhttps?://[^\s"'<>/@]+:[^\s"'<>/@]*@[^\s"'<>/]+`)
 
@@ -172,16 +173,12 @@ type LinkListParser struct{}
 func (LinkListParser) Parse(f *vfile, fs *vfs) ([]*Config, error) {
 	links := extractFileLinks(f.Text())
 	out := make([]*Config, 0, len(links))
-	for _, l := range links {
-		n, err := parseLink(l)
-		meta := linkMeta(l)
-		c := newNodeConfig(f, "Links", n, err, meta)
-		if c.Protocol == "" {
-			scheme, _, _ := strings.Cut(l, "://")
-			c.Protocol = strings.ToLower(scheme)
+	for i, l := range links {
+		for _, c := range linkConfigs(f.Child(fmt.Sprintf("link%d", i), fmt.Sprintf("link%d.txt", i), []byte(l)), fs, l) {
+			c.Format = "Links"
+			c.File = f.Root().Path
+			out = append(out, c)
 		}
-		c.RawConfig = []byte(l)
-		out = append(out, c)
 	}
 	return out, nil
 }
@@ -190,10 +187,26 @@ type LinkListFilter struct{}
 
 func (LinkListFilter) Filter(f *vfile, indices []int) ([]byte, error) {
 	links := extractFileLinks(f.Text())
-	var b strings.Builder
+	var owner []int
+	for i, l := range links {
+		n := 1
+		if lookupLinkHandler(l) != nil {
+			n = len(linkConfigs(f.Child(fmt.Sprintf("link%d", i), fmt.Sprintf("link%d.txt", i), []byte(l)), nil, l))
+		}
+		for k := 0; k < n; k++ {
+			owner = append(owner, i)
+		}
+	}
+	keep := map[int]bool{}
 	for _, i := range indices {
-		if i >= 0 && i < len(links) {
-			b.WriteString(links[i])
+		if i >= 0 && i < len(owner) {
+			keep[owner[i]] = true
+		}
+	}
+	var b strings.Builder
+	for i, l := range links {
+		if keep[i] {
+			b.WriteString(l)
 			b.WriteByte('\n')
 		}
 	}
